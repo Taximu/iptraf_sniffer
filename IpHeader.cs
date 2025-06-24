@@ -5,7 +5,9 @@ using System.Net;
 namespace Packet;
 
 /// <summary>
-/// IP Header and its fields
+/// The IpHeader class defines a direct representation of the IPv4 header structure from RFC 791
+/// with no deviations or vendor-specific structure for an IPv4 packet header. 
+/// https://www.rfc-editor.org/rfc/rfc791#section-3.1
 /// </summary>
 public class IpHeader
 {
@@ -13,7 +15,7 @@ public class IpHeader
     {
         get
         {
-            //4 bits of an IP header contain version of an IP (v4 or v6)
+            // 4 bits of an IP header contain version of an IP (v4 or v6)
             return (_versionAndHeaderLength >> 4) switch
             {
                 4 => "IP v4",
@@ -62,13 +64,13 @@ public class IpHeader
     {
         get
         {
-            var nOffset = _flagsAndOffset << 3;
+            var nOffset = _flagsAndOffset & 0x1FFF;
             nOffset >>= 3;
             return nOffset.ToString();
         }
     }
 
-    public byte[] Data { get; } = new byte[4096];
+    public byte[] Data { get; private set; }
 
 
     public IpHeader(byte[] incomingBuffer, int numberReceived)
@@ -94,20 +96,21 @@ public class IpHeader
 
             _checksum = IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
 
-            _sourceIpAddress = (uint)(binaryReader.ReadInt32());
+            _sourceIpAddress = (uint)IPAddress.NetworkToHostOrder(binaryReader.ReadInt32());
 
-            _destinationIpAddress = (uint)(binaryReader.ReadInt32());
+            _destinationIpAddress = (uint)binaryReader.ReadInt32();
+                
+            Data = new byte[_totalDatagramLength - _headerLength];
 
-            #region Calculating header's length
+            // Calculating header's length
             _headerLength = _versionAndHeaderLength;
             _headerLength <<= 4;
             _headerLength >>= 4;
-            #endregion
-
+            // Mutiply by 4 to know exact value
             _headerLength *= 4;
 
             Array.Copy(incomingBuffer,
-                _headerLength,
+                _headerLength, //starting to copy from the end of a header
                 Data, 0,
                 _totalDatagramLength - _headerLength);
         }
@@ -116,16 +119,33 @@ public class IpHeader
             Console.WriteLine(ex.Message);
         }
     }
+
+    // IP Header and its fields
     
-    private readonly byte _versionAndHeaderLength;
-    private readonly byte _differentServices;
-    private readonly ushort _totalDatagramLength;
-    private readonly ushort _identification;
-    private readonly ushort _flagsAndOffset;
-    private readonly byte _ttl;
-    private readonly byte _protocol;
-    private readonly short _checksum;
-    private readonly uint _sourceIpAddress;
-    private readonly uint _destinationIpAddress;
-    private readonly byte _headerLength;
+    private readonly byte _versionAndHeaderLength; // Version (4 bits) + Internet Header Length (4 bits)
+
+    
+    private readonly byte _differentServices; // 8 bit different services 
+
+    
+    private readonly ushort _totalDatagramLength; // 16 bit Total Length
+
+    
+    private readonly ushort _identification; // 16 bit Identification
+
+    
+    private readonly ushort _flagsAndOffset; // Flags (3 bits) + Fragment Offset (13 bits)
+
+   
+    private readonly byte _ttl; // 8 bit Time to Live
+
+    private readonly byte _protocol; // 8 bit Protocol
+
+    private readonly short _checksum; // 16 bit Header Checksum
+
+    private readonly uint _sourceIpAddress; // 32 bit Source Address
+
+    private readonly uint _destinationIpAddress; // 32 bit Destination Address
+
+    private readonly byte _headerLength; // 8 bit header length
 }
